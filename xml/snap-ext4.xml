@@ -1,0 +1,8 @@
+<domainsnapshot>
+    <name>base</name>
+    <disks>
+        <disk name='hda' snapshot='external'>
+            <driver type='qcow2'/>
+        </disk>
+    </disks>
+</domainsnapshot>

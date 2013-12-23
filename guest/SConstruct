@@ -1,0 +1,4 @@
+env = Environment()
+env.Replace(LINKFLAGS = '-rdynamic')
+env.Append(LIBS = ['unwind', 'dl'])
+env.Program('fstest', Glob('*.c'))

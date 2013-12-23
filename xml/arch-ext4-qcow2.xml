@@ -1,0 +1,37 @@
+<!-- Domain XML format for ArchLinux -->
+<domain type='kvm'>
+    <name>arch-ext4</name>
+    <title>ArchLinux used for ext4 file system fault injection simulation</title>
+    <os>
+        <type arch="x86_64">hvm</type>
+        <boot dev='cdrom'/>
+        <boot dev='hd'/>
+    </os>
+    <vcpu>4</vcpu>
+    <memory unit='MiB'>256</memory>
+    <devices>
+        <disk type='file' device='cdrom' snapshot='no'>
+            <source file='/var/lib/libvirt/images/arch.iso'/>
+            <target dev='hdc' bus='ide'/>
+            <readonly/>
+        </disk>
+        <disk type='file' device='disk' snapshot='external'>
+            <driver name='qemu' type='qcow2'/>
+            <source file='/var/lib/libvirt/images/ext4.qcow2'/>
+            <target dev='hda' bus='ide'/>
+        </disk>
+        <graphics type='vnc' port='6666' sharePolicy='allow-exclusive'/>
+        <interface type='network'>
+            <source network='default'/>
+        </interface>
+        <serial type="file">
+            <source path="/var/lib/libvirt/images/ser0.txt"/>
+            <target port="0"/>
+        </serial>
+        <serial type="file">
+            <source path="/var/lib/libvirt/images/ser1.txt"/>
+            <target port="1"/>
+        </serial>
+        <watchdog model='i6300esb'/>
+    </devices>
+</domain>

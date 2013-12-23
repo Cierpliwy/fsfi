@@ -1,0 +1,11 @@
+<domainsnapshot>
+    <name>disk-snap-ext4</name>
+    <memory snapshot='no'/>
+    <disks>
+        <disk name='hda' snapshot='external'>
+            <driver type='qcow2'/>
+	    <source file='/var/lib/libvirt/images/disk-snap-ext4.qcow2'/>
+        </disk>
+	<disk name='hdc' snapshot='no'/>
+    </disks>
+</domainsnapshot>
