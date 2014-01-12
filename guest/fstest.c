@@ -6,6 +6,9 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 // SIGSEGV handler
 void signal_handler(int signal, siginfo_t *info, void *unused);
@@ -100,21 +103,61 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Wait for command from host
+    // Setup socket
+    int s;
+    s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s == -1) {
+        fprintf(out, "[INTERNAL] Cannot create a datagram socket: %s\n",
+                strerror(errno));
+        return 1;
+    }
+    struct sockaddr_in addr, clientAddr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(0);
+
+    if (bind(s, (const struct sockaddr*)(&addr), sizeof(addr)) == -1) {
+        fprintf(out, "[INTERNAL] Cannot bound to port: %s\n", strerror(errno));
+        return 1;
+    }
+    socklen_t len = sizeof(addr);
+    if (getsockname(s, (struct sockaddr*)(&addr), &len) == -1) {
+        fprintf(out, "[INTERNAL] Cannot get socket name: %s\n", 
+                strerror(errno));
+        return 1;
+    }
+    fprintf(out, "[INTERNAL] Created socket: %s:%d\n",
+                 inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+
+    ssize_t size = 0;
+    char buffer[256] = {0};
+    len = sizeof(clientAddr);
+
+    // Wait for a command
+    size = recvfrom(s, buffer, 256, 0, (struct sockaddr*) &clientAddr, &len);
+    buffer[255] = '\0'; 
+    fprintf(out, "[INTERNAL] Msg: %dB, Injection: %s, Retries: %d\n", 
+            buffer[0], buffer+2, buffer[1]);
+
+    // Update retries count
+    struct TestData *test = g_test_list;
+    while(test) {
+        test->test.max_retries = buffer[1];
+        test = test->next;
+    }
 
     // Inject fault(s) 
-    /*
     FILE *file = fopen("/proc/kernelinjector","a"); 
     if (!file) {
         fprintf(out, "[INTERNAL] Kinjector module isn't probably loaded: %s\n",
                 strerror(errno));
         return 1;
     }
-    fprintf(file, "MODULE ext4 CODE\n");
-    */
+    fprintf(file, "%s", buffer+2);
 
     // Do tests
-    struct TestData *test = g_test_list;
+    test = g_test_list;
     while(test) {
         g_current_test = test;
         if (sigsetjmp(g_jmp_buffer, 1) == 0) {
