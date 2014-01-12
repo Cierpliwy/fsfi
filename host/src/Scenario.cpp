@@ -55,6 +55,7 @@ bool Scenario::loadFromXML(const string& filePath)
     keyValMap["/scenario/limits/time"];
     keyValMap["/scenario/limits/disk"];
     keyValMap["/scenario/command"];
+    keyValMap["/scenario/retries"];
 
     for(auto &keyVal : keyValMap) {
         xpathObj = xmlXPathEvalExpression(
@@ -78,15 +79,13 @@ bool Scenario::loadFromXML(const string& filePath)
     m_command = keyValMap["/scenario/command"];
 
     try {
-    if (!keyValMap["/scenario/limits/iterations"].empty())
         m_constraints.maxIterations = 
             stoul(keyValMap["/scenario/limits/iterations"]);
-    if (!keyValMap["/scenario/limits/time"].empty())
         m_constraints.maxSeconds = 
             chrono::seconds(stoul(keyValMap["/scenario/limits/time"]));
-    if (!keyValMap["/scenario/limits/disk"].empty())
         m_constraints.maxSizeInBytes =
             stoul(keyValMap["/scenario/limits/disk"]);
+        m_retries = stoi(keyValMap["/scenario/retries"]);
     } catch(std::exception &inv) {
         m_lastError = "Value(s) are in incorrect format or out of range";
         xmlXPathFreeContext(xpathCtx);

@@ -1,9 +1,18 @@
 <host>
     <name>arch-ext4</name>
     <snapshot>
-        <name>blabla</name>
+        <path>/home/cierpliwy/snap</path>
     </snapshot>
     <disk>
-        <name>jkhiku</name>
+        <path>/var/lib/libvirt/images/ext4-delta.qcow2</path>
+        <save>no</save>
     </disk>
+    <ip>
+        <address>192.168.122.62</address>
+        <port>9000</port>
+    </ip>
+    <logs>
+        <kernel>/var/lib/libvirt/images/ser0.txt</kernel>
+        <program>/var/lib/libvirt/images/ser1.txt</program>
+    </logs>
 </host>

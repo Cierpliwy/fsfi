@@ -8,6 +8,9 @@ namespace fsfi
 class Scenario
 {
 public:
+
+    Scenario() : m_retries(0) {}
+
     struct Constraints
     {
         Constraints() : maxSeconds(0), maxSizeInBytes(0), maxIterations(0) {}
@@ -57,12 +60,20 @@ public:
         return m_lastError;
     }
 
+    unsigned int getRetries() const {
+        return m_retries;
+    }
+    void setRetries(unsigned int retries) {
+        m_retries = retries;
+    }
+
 private:
     Constraints m_constraints;
     std::string m_command;
     std::string m_description;
     mutable std::string m_lastError;
     std::string m_name;
+    unsigned int m_retries;
 };
 }
 
