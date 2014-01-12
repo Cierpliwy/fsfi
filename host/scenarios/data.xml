@@ -1,0 +1,10 @@
+<scenario>
+    <name>Ext4DataInj</name>
+    <description>Testing ext4 faults by injecting faults randomly into driver's data memory</description>
+    <limits>
+        <iterations>1000</iterations>
+        <time>600</time>
+        <disk>0</disk>
+    </limits>
+    <command>MODULE ext4 DATA RODATA</command>
+</scenario>

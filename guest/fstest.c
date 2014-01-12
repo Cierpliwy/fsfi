@@ -9,6 +9,7 @@
 
 // SIGSEGV handler
 void signal_handler(int signal, siginfo_t *info, void *unused);
+void usage(void);
 
 //Global variables
 FILE *out;
@@ -25,12 +26,24 @@ struct TestData *g_current_test = NULL;
 sigjmp_buf g_jmp_buffer; 
 int g_in_test = 0;
 
-int main()
+int main(int argc, char *argv[])
 {
     char path[PATH_MAX];
 
     // Specify output file
-    out = stdout;
+    if (argc == 1)
+        out = stdout;
+    else if (argc == 2) {
+        out = fopen(argv[1],"a");
+        if (!out) {
+            fprintf(out, "[INTERNAL] Cannot open output file: %s\n",
+                    strerror(errno));
+            return 1;
+        }
+    } else {
+        usage();
+        return 1;
+    }
 
     // Register SIGSEGV handler
     struct sigaction sa;
@@ -89,9 +102,21 @@ int main()
 
     // Wait for command from host
 
+    // Inject fault(s) 
+    /*
+    FILE *file = fopen("/proc/kernelinjector","a"); 
+    if (!file) {
+        fprintf(out, "[INTERNAL] Kinjector module isn't probably loaded: %s\n",
+                strerror(errno));
+        return 1;
+    }
+    fprintf(file, "MODULE ext4 CODE\n");
+    */
+
     // Do tests
     struct TestData *test = g_test_list;
     while(test) {
+        g_current_test = test;
         if (sigsetjmp(g_jmp_buffer, 1) == 0) {
             g_in_test = 1;
             test_start(&test->test);
@@ -146,3 +171,8 @@ void signal_handler(int signal, siginfo_t *info, void *ucontext)
     exit(1);
 }
 
+void usage(void)
+{
+    printf("Usage:\n");
+    printf("fstest [output_file]\n");
+}

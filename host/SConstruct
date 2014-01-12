@@ -1,9 +1,1 @@
-import os
-
-env = Environment()
-env.Replace(CXX = 'clang++')
-env.Replace(CXXFLAGS = '-std=c++11')
-env.VariantDir('bin', 'src', duplicate = 0)
-env.ParseConfig('pkg-config --cflags --libs libvirt')
-for file in Glob('*.cpp'):
-    env.Program(file)
+SConscript('SConscript', variant_dir = 'build', duplicate = 0)

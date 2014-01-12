@@ -1,0 +1,9 @@
+<host>
+    <name>arch-ext4</name>
+    <snapshot>
+        <name>blabla</name>
+    </snapshot>
+    <disk>
+        <name>jkhiku</name>
+    </disk>
+</host>

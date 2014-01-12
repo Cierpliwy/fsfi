@@ -1,0 +1,7 @@
+import shutil
+
+env = Environment()
+env.Replace(CXX = 'clang++')
+env.Replace(CXXFLAGS = '-std=c++11')
+env.ParseConfig('pkg-config --cflags --libs libvirt libxml-2.0')
+env.Program('fsfi',Glob('src/*.cpp'))
