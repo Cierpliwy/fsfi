@@ -10,6 +10,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#define MSG_START   "S"
+#define MSG_FINISH  "F"
+#define MSG_ERROR   "E"
+
 // SIGSEGV handler
 void signal_handler(int signal, siginfo_t *info, void *unused);
 void usage(void);
@@ -28,26 +32,34 @@ struct TestData *g_test_list = NULL;
 struct TestData *g_current_test = NULL;
 sigjmp_buf g_jmp_buffer; 
 int g_in_test = 0;
+int g_socket = 0;
+struct sockaddr_in g_client;
 
 int main(int argc, char *argv[])
 {
     char path[PATH_MAX];
 
-    // Specify output file
-    if (argc == 1)
-        out = stdout;
-    else if (argc == 2) {
+    // Input data
+    if (argc > 3) {
+        usage();
+        return 1;
+    }
+
+    out = stdout;
+    if (argc >= 2) {
         out = fopen(argv[1],"a");
         if (!out) {
             fprintf(out, "[INTERNAL] Cannot open output file: %s\n",
                     strerror(errno));
             return 1;
         }
-    } else {
-        usage();
-        return 1;
-    }
+    } 
 
+    unsigned int port = 0;
+    if (argc >= 3) {
+        port = atoi(argv[2]);
+    }
+        
     // Register SIGSEGV handler
     struct sigaction sa;
     sa.sa_sigaction = signal_handler;
@@ -104,25 +116,24 @@ int main(int argc, char *argv[])
     }
 
     // Setup socket
-    int s;
-    s = socket(AF_INET, SOCK_DGRAM, 0);
-    if (s == -1) {
+    g_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (g_socket == -1) {
         fprintf(out, "[INTERNAL] Cannot create a datagram socket: %s\n",
                 strerror(errno));
         return 1;
     }
-    struct sockaddr_in addr, clientAddr;
+    struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(0);
+    addr.sin_port = htons(port);
 
-    if (bind(s, (const struct sockaddr*)(&addr), sizeof(addr)) == -1) {
+    if (bind(g_socket, (const struct sockaddr*)(&addr), sizeof(addr)) == -1) {
         fprintf(out, "[INTERNAL] Cannot bound to port: %s\n", strerror(errno));
         return 1;
     }
     socklen_t len = sizeof(addr);
-    if (getsockname(s, (struct sockaddr*)(&addr), &len) == -1) {
+    if (getsockname(g_socket, (struct sockaddr*)(&addr), &len) == -1) {
         fprintf(out, "[INTERNAL] Cannot get socket name: %s\n", 
                 strerror(errno));
         return 1;
@@ -132,13 +143,22 @@ int main(int argc, char *argv[])
 
     ssize_t size = 0;
     char buffer[256] = {0};
-    len = sizeof(clientAddr);
+    len = sizeof(g_client);
 
     // Wait for a command
-    size = recvfrom(s, buffer, 256, 0, (struct sockaddr*) &clientAddr, &len);
+    size = recvfrom(g_socket, buffer, 256, 0, 
+                    (struct sockaddr*) &g_client, &len);
     buffer[255] = '\0'; 
     fprintf(out, "[INTERNAL] Msg: %dB, Injection: %s, Retries: %d\n", 
             buffer[0], buffer+2, buffer[1]);
+
+    // Send OK response
+    size = sendto(g_socket, MSG_START, 1, 0, 
+                  (const struct sockaddr*)(&g_client), len);
+    if (size != 1) {
+        fprintf(out, "[INTERNAL] Cannot send OK msg: %s\n", strerror(errno));
+        return 1;
+    }
 
     // Update retries count
     struct TestData *test = g_test_list;
@@ -179,6 +199,14 @@ int main(int argc, char *argv[])
         test = next;
     }
 
+    // Send FINISH response
+    size = sendto(g_socket, MSG_FINISH, 1, 0, 
+                  (const struct sockaddr*)(&g_client), len);
+    if (size != 1) {
+        fprintf(out, "[INTERNAL] Cannot send OK msg: %s\n", strerror(errno));
+        return 1;
+    }
+
     return 0;
 }
 
@@ -211,11 +239,16 @@ void signal_handler(int signal, siginfo_t *info, void *ucontext)
     }
 
     if (g_current_test && g_in_test) test_error(&g_current_test->test, 1);
+
+    // Send ERROR msg
+    sendto(g_socket, MSG_FINISH, 1, 0, (const struct sockaddr*)(&g_client), 
+           sizeof(g_client));
+
     exit(1);
 }
 
 void usage(void)
 {
     printf("Usage:\n");
-    printf("fstest [output_file]\n");
+    printf("fstest [output_file] [port_nr]\n");
 }
