@@ -1,8 +1,14 @@
 #include "HostManager.hpp"
 #include "ScenarioManager.hpp"
+#include <ctime>
+#include <iomanip>
 #include <iostream>
 #include <dirent.h>
+#include <string.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 using namespace fsfi;
 using namespace std;
 
@@ -58,8 +64,46 @@ void HostManager::executeOnEachHost(const ScenarioManager &scenarioManager)
 
     //TODO Handle each host in separate thread
     for (auto &h : m_hosts) {
+
+        //Create folder for a host
+        struct stat dirStat;
+        if (stat(".", &dirStat) == -1) {
+            cout << "Error: stat(): " << strerror(errno) << endl;
+            break;
+        }
+
+        time_t t = time(nullptr);
+        tm *now = localtime(&t);
+        string folderName = h.second.getName();
+        folderName += "_";
+        folderName += to_string(now->tm_mday);
+        folderName += "_";
+        folderName += to_string(now->tm_mon + 1);
+        folderName += "_";
+        folderName += to_string(now->tm_year + 1900);
+        folderName += "_";
+        folderName += to_string(now->tm_hour);
+        folderName += "_";
+        folderName += to_string(now->tm_min);
+        folderName += "_";
+        folderName += to_string(now->tm_sec);
+
+        if (mkdir(folderName.c_str(), dirStat.st_mode) == -1) {
+            cout << "Error: mkdir(): " << strerror(errno) << endl;
+            break;
+        }
+
         for (auto &s : scenarios) {
-            if (!h.second.executeScenario(s, m_connection)) {
+            string scenarioFolderName = folderName;
+            scenarioFolderName += '/';
+            scenarioFolderName += s.getName();
+            
+            if (mkdir(scenarioFolderName.c_str(), dirStat.st_mode) == -1) {
+                cout << "Error: mkdir(): " << strerror(errno) << endl;
+                break;
+            }
+
+            if (!h.second.executeScenario(s, m_connection, scenarioFolderName)) {
                 cout << "'" << s.getName() << "' execution aborted by "
                      << h.second.getName() << ": "
                      << h.second.getLastError() << endl;

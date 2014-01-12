@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <chrono>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
@@ -10,7 +11,9 @@
 #include <map>
 #include <netinet/in.h>
 #include <sys/select.h>
+#include <sys/sendfile.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -87,7 +90,8 @@ bool Host::loadSettingsFromXML(const string &settingsPath)
     return true;
 }
 
-bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn)
+bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn,
+                           const std::string &rootFolder)
 {
     if (!setupSocket()) return false;
     unsigned long iterations = 0;
@@ -102,9 +106,49 @@ bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn)
              << iterations << "/";
         cout.flush();
 
+        // Copy from backup file
+        string backDiskPath = m_diskPath.c_str();
+        backDiskPath += ".bak";
+
+        if (!copyFile(backDiskPath.c_str(), m_diskPath.c_str())) {
+            return false;
+        }
+
         InjectionResult res = executeInjection(scenario, conn);
         if (res == InjectionResult::FAILURE) return false;
 
+        // Wait for synchronization
+        sleep(1);
+
+        // Save delta file
+        string deltaFileName = rootFolder.c_str();
+        deltaFileName += "/";
+        deltaFileName += to_string(iterations);
+        deltaFileName += "_delta.qcow2";
+        if (!copyFile(m_diskPath.c_str(), deltaFileName.c_str())) {
+            return false;
+        }
+
+        // Copy log files
+        string logFileName;
+        
+        logFileName = rootFolder.c_str();
+        logFileName += "/";
+        logFileName += to_string(iterations);
+        logFileName += "_kernel.log";
+        if (!copyFile(m_kernelLogPath.c_str(), logFileName.c_str())) {
+            return false;
+        }
+
+        logFileName = rootFolder.c_str();
+        logFileName += "/";
+        logFileName += to_string(iterations);
+        logFileName += "_program.log";
+        if (!copyFile(m_programLogPath.c_str(), logFileName.c_str())) {
+            return false;
+        }
+
+        // Print out result
         cout << chrono::duration_cast<chrono::milliseconds>
                 (clk.now() - injectionTime).count() << "ms";
 
@@ -313,4 +357,51 @@ char Host::getData()
     }
 
     return b;
+}
+
+bool Host::copyFile(const string &filePathA, const string &filePathB)
+{
+    // Open a file to copy
+    int fdA = open(filePathA.c_str(), O_RDONLY);
+    if (fdA == -1) {
+        m_lastError = "Cannot open file ";
+        m_lastError += filePathA;
+        m_lastError += "for a copy: ";
+        m_lastError += strerror(errno);
+        return false;
+    }
+
+    // Get fdA stats
+    struct stat fdAStat;
+    if (fstat(fdA, &fdAStat) == -1) {
+        m_lastError = "Cannot stats of file ";
+        m_lastError += filePathA;
+        m_lastError += "for a copy: ";
+        m_lastError += strerror(errno);
+        return false;
+    }
+
+    // Create new empty file
+    int fdB = open(filePathB.c_str(), 
+                   O_WRONLY | O_CREAT | O_TRUNC, fdAStat.st_mode);
+
+    if (fdB == -1) {
+        m_lastError = "Cannot stats of file ";
+        m_lastError += filePathB;
+        m_lastError += "for a copy: ";
+        m_lastError += strerror(errno);
+        return false;
+    }
+
+    // Copy content of file
+    off_t offset = 0;
+    if ( sendfile(fdB, fdA, &offset, fdAStat.st_size) != fdAStat.st_size) {
+        m_lastError = "Cannot copy from file ";
+        m_lastError += filePathA;
+        m_lastError += ": ";
+        m_lastError += strerror(errno);
+        return false;
+    }
+
+    return true;
 }

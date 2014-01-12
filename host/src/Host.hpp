@@ -12,7 +12,8 @@ class Host
 public:
     bool loadSettingsFromXML(const std::string &settingsPath);
 
-    bool executeScenario(const Scenario& scenario, virConnectPtr conn);
+    bool executeScenario(const Scenario& scenario, virConnectPtr conn,
+                         const std::string &rootFolder);
 
     const std::string& getLastError() const {
         return m_lastError;
@@ -90,6 +91,8 @@ private:
 
     InjectionResult executeInjection(const Scenario &scenario, 
                                      virConnectPtr conn);
+
+    bool copyFile(const std::string &filePathA, const std::string &filePathB);
 
     mutable std::string m_lastError;
     std::string m_name;

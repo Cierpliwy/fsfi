@@ -4,7 +4,7 @@
         <path>/home/cierpliwy/snap</path>
     </snapshot>
     <disk>
-        <path>/var/lib/libvirt/images/ext4-delta.qcow2</path>
+        <path>/var/lib/libvirt/images/ext4.ext4-delta.qcow2</path>
         <save>no</save>
     </disk>
     <ip>
