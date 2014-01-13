@@ -2,8 +2,8 @@
     <name>ext4_file_open-reg</name>
     <description>Register injection</description>
     <limits>
-        <iterations>3</iterations>
-        <time>0</time>
+        <iterations>0</iterations>
+        <time>30</time>
         <disk>0</disk>
     </limits>
     <command>MODULE ext4 CODE RODATA DATA</command>
