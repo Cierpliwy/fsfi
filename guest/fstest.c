@@ -14,7 +14,8 @@
 #define MSG_FINISH  "F"
 #define MSG_ERROR   "E"
 
-// SIGSEGV handler
+// Signal handler
+void register_handler(int signal, struct sigaction* sa);
 void signal_handler(int signal, siginfo_t *info, void *unused);
 void usage(void);
 
@@ -60,16 +61,37 @@ int main(int argc, char *argv[])
         port = atoi(argv[2]);
     }
         
-    // Register SIGSEGV handler
+    // Register handler for all possible signals
     struct sigaction sa;
     sa.sa_sigaction = signal_handler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO;
-    if (sigaction(SIGSEGV, &sa, NULL) == -1) {
-        fprintf(out, "[INTERNAL] Cannot attach signal handler\n");
-        return 1;
-    }
-
+    register_handler(SIGABRT, &sa);
+    register_handler(SIGALRM, &sa);
+    register_handler(SIGBUS, &sa);
+    register_handler(SIGCHLD, &sa);
+    register_handler(SIGCONT, &sa);
+    register_handler(SIGFPE, &sa);
+    register_handler(SIGHUP, &sa);
+    register_handler(SIGILL, &sa);
+    register_handler(SIGINT, &sa);
+    register_handler(SIGPIPE, &sa);
+    register_handler(SIGQUIT, &sa);
+    register_handler(SIGSEGV, &sa);
+    register_handler(SIGTERM, &sa);
+    register_handler(SIGTSTP, &sa);
+    register_handler(SIGTTIN, &sa);
+    register_handler(SIGTTOU, &sa);
+    register_handler(SIGUSR1, &sa);
+    register_handler(SIGUSR2, &sa);
+    register_handler(SIGPOLL, &sa);
+    register_handler(SIGPROF, &sa);
+    register_handler(SIGSYS, &sa);
+    register_handler(SIGTRAP, &sa);
+    register_handler(SIGURG, &sa);
+    register_handler(SIGVTALRM, &sa);
+    register_handler(SIGXCPU, &sa);
+    register_handler(SIGXFSZ, &sa);
 
     // Load tests
     struct dirent *entry;
@@ -209,6 +231,14 @@ int main(int argc, char *argv[])
     }
 
     return 0;
+}
+
+void register_handler(int signal, struct sigaction* sa)
+{
+    if (sigaction(signal, sa, NULL) == -1) {
+        fprintf(out, "[INTERNAL] Cannot attach signal handler: \n");
+        exit(1);
+    }
 }
 
 void signal_handler(int signal, siginfo_t *info, void *ucontext)
