@@ -98,7 +98,8 @@ bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn,
     bool finished = false;
     chrono::high_resolution_clock clk;
     auto executionTime = clk.now();
-    
+    m_mt19937.seed(clk.now().time_since_epoch().count());
+
     while(!finished) {
         auto injectionTime = clk.now();
         iterations++;
@@ -111,16 +112,21 @@ bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn,
         backDiskPath += ".bak";
 
         if (!copyFile(backDiskPath.c_str(), m_diskPath.c_str())) {
+            closeSocket();
             return false;
         }
 
         InjectionResult res = executeInjection(scenario, conn);
-        if (res == InjectionResult::FAILURE) return false;
+        if (res == InjectionResult::FAILURE) {
+            closeSocket();
+            return false;
+        }
 
         // Wait for synchronization
         sleep(1);
 
         // Save delta file
+        /*
         string deltaFileName = rootFolder.c_str();
         deltaFileName += "/";
         deltaFileName += to_string(iterations);
@@ -128,6 +134,7 @@ bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn,
         if (!copyFile(m_diskPath.c_str(), deltaFileName.c_str())) {
             return false;
         }
+        */
 
         // Copy log files
         string logFileName;
@@ -137,6 +144,7 @@ bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn,
         logFileName += to_string(iterations);
         logFileName += "_kernel.log";
         if (!copyFile(m_kernelLogPath.c_str(), logFileName.c_str())) {
+            closeSocket();
             return false;
         }
 
@@ -145,6 +153,7 @@ bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn,
         logFileName += to_string(iterations);
         logFileName += "_program.log";
         if (!copyFile(m_programLogPath.c_str(), logFileName.c_str())) {
+            closeSocket();
             return false;
         }
 
@@ -185,6 +194,7 @@ bool Host::executeScenario(const Scenario &scenario, virConnectPtr conn,
         cout << ']' << endl;
     }
 
+    closeSocket();
     return true;
 }
 
@@ -196,6 +206,8 @@ Host::InjectionResult Host::executeInjection(const Scenario& scenario,
     msg += static_cast<char>(0);
     msg += static_cast<char>(scenario.getRetries());
     msg += scenario.getCommand();
+    msg += " SEED ";
+    msg += to_string(m_dist(m_mt19937));
     msg += '\a';
     msg[0] = static_cast<char>(msg.length());
 
@@ -212,12 +224,14 @@ Host::InjectionResult Host::executeInjection(const Scenario& scenario,
     if (virDomainGetState(dom, &state, nullptr, 0) == -1) {
         m_lastError = "Cannot get a domain state: ";
         m_lastError += virGetLastErrorMessage();
+        virDomainFree(dom);
         return InjectionResult::FAILURE;
     }
     if (state != VIR_DOMAIN_SHUTOFF) {
         if (virDomainDestroy(dom) == -1) {
             m_lastError = "Cannot stop a domain: ";
             m_lastError += virGetLastErrorMessage();
+            virDomainFree(dom);
             return InjectionResult::FAILURE;
         }
     }
@@ -226,6 +240,7 @@ Host::InjectionResult Host::executeInjection(const Scenario& scenario,
     if (virDomainRestore(conn, m_snapshotPath.c_str()) == -1) {
         m_lastError = "Cannot restore a domain: ";
         m_lastError += virGetLastErrorMessage();
+        virDomainFree(dom);
         return InjectionResult::FAILURE;
     }
 
@@ -233,12 +248,14 @@ Host::InjectionResult Host::executeInjection(const Scenario& scenario,
     if (virDomainGetState(dom, &state, nullptr, 0) == -1) {
         m_lastError = "Cannot get a domain state: ";
         m_lastError += virGetLastErrorMessage();
+        virDomainFree(dom);
         return InjectionResult::FAILURE;
     }
     if (state & VIR_DOMAIN_PAUSED) {
         if (virDomainResume(dom) == -1) {
             m_lastError = "Cannot resume a domain: ";
             m_lastError += virGetLastErrorMessage();
+            virDomainFree(dom);
             return InjectionResult::FAILURE;
         }
     }
@@ -263,6 +280,7 @@ Host::InjectionResult Host::executeInjection(const Scenario& scenario,
         if (val == -1) {
             m_lastError = "Error during select: ";
             m_lastError += strerror(errno);
+            virDomainFree(dom);
             return InjectionResult::FAILURE;
         }
         if (FD_ISSET(m_socket, &set)) {
@@ -272,6 +290,7 @@ Host::InjectionResult Host::executeInjection(const Scenario& scenario,
             startTimeoutMs += retryTimeoutMs;
             if (startTimeoutMs >= maxStartTimeoutMs) {
                 m_lastError = "Couldn't start scenario";
+                virDomainFree(dom);
                 return InjectionResult::NOT_STARTED;
             }
         }
@@ -291,14 +310,22 @@ Host::InjectionResult Host::executeInjection(const Scenario& scenario,
     if (val == -1) {
         m_lastError = "Error during select: ";
         m_lastError += strerror(errno);
+        virDomainFree(dom);
         return InjectionResult::FAILURE;
     }
     if (FD_ISSET(m_socket, &set)) {
         char d = getData();
-        if (d == 'F') return InjectionResult::OK;
-        if (d == 'E') return InjectionResult::ERROR;
+        if (d == 'F') {
+            virDomainFree(dom);
+            return InjectionResult::OK;
+        }
+        if (d == 'E') {
+            virDomainFree(dom);
+            return InjectionResult::ERROR;
+        }
     }
 
+    virDomainFree(dom);
     return InjectionResult::TIMEOUT;
 }
 
@@ -325,6 +352,11 @@ bool Host::setupSocket()
     }
 
     return true;
+}
+
+void Host::closeSocket()
+{
+    close(m_socket);
 }
 
 bool Host::sendData(const std::string &msg)
@@ -402,6 +434,9 @@ bool Host::copyFile(const string &filePathA, const string &filePathB)
         m_lastError += strerror(errno);
         return false;
     }
+    
+    close(fdA);
+    close(fdB);
 
     return true;
 }

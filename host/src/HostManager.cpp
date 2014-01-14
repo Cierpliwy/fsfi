@@ -56,6 +56,8 @@ void HostManager::loadHosts(const string &directoryPath)
             }
         }
     }
+
+    closedir(hostsDir);
 }
 
 void HostManager::executeOnEachHost(const ScenarioManager &scenarioManager)

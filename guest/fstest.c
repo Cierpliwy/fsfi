@@ -175,6 +175,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     fprintf(file, "%s", buffer+2);
+    fflush(file);
 
     // Do tests
     test = g_test_list;

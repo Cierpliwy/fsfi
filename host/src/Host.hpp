@@ -2,6 +2,7 @@
 #define FSFI_HOST_HPP
 #include <libvirt/libvirt.h>
 #include <string>
+#include <random>
 
 namespace fsfi 
 {
@@ -78,6 +79,7 @@ public:
 private:
 
     bool setupSocket();
+    void closeSocket();
     bool sendData(const std::string &msg);
     char getData();
 
@@ -103,6 +105,8 @@ private:
     std::string m_address;
     unsigned int m_portNr;
     bool m_saveDisk;
+    std::mt19937 m_mt19937;
+    std::uniform_int_distribution<long> m_dist;
     
     int m_socket;
 };
